@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Pétanque 3D – 2 joueurs (V3.4 – Responsive mobile)</title>
+  <title>Pétanque 3D – 2 joueurs (V3.5 – Fix syntax + responsive)</title>
   <style>
     /* Palette "été" */
     :root{
@@ -21,19 +21,17 @@
     /* HUD */
     .hud{position:absolute;inset:0;pointer-events:none;z-index:2}
 
-    .topbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--panel-border);padding:8px 10px;border-radius:16px;backdrop-filter: blur(8px)}
-    .topbar{flex-wrap:wrap}
+    .topbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--panel-border);padding:8px 10px;border-radius:16px;backdrop-filter: blur(8px);flex-wrap:wrap}
     .left, .right{display:flex;gap:8px;align-items:center}
     .right{margin-left:auto}
     .badge{pointer-events:none;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-weight:700;border:1px solid var(--panel-border);box-shadow:0 3px 12px rgba(0,0,0,.06);transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; font-size:14px}
     .mene{background:linear-gradient(90deg,var(--sun),#ffe58b)}
     .p1{background:linear-gradient(90deg,#e5e5e5,#f6f6f6)}
     .p2{background:linear-gradient(90deg,#b5b5b5,#d0d0d0)}
-    .balls{background:linear-gradient(90deg,#fff,#f6f6f6)}
     .badge.active{border-color:#0ab39c; box-shadow:0 0 0 3px rgba(10,179,156,.25), 0 6px 20px rgba(0,0,0,.12); transform:translateY(-1px)}
 
     /* Panel contrôles */
-    .panel{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;display:flex;flex-direction:column;gap:10px;width:min(820px,92vw);background:var(--panel);border:1px solid var(--panel-border);padding:12px;border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.15);pointer-events:auto} 
+    .panel{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;display:flex;flex-direction:column;gap:10px;width:min(820px,92vw);background:var(--panel);border:1px solid var(--panel-border);padding:12px;border-radius:18px;box-shadow:0 12px 30px rgba(0,0,0,.15);pointer-events:auto}
     .row{display:flex;align-items:center;gap:10px}
     .lbl{min-width:100px;font-size:14px;color:#2c4a57;font-weight:700}
     .gauge{position:relative;height:16px;background:linear-gradient(180deg,#ffffff,#f6f6f6);border:1px solid var(--panel-border);border-radius:999px;overflow:hidden;flex:1}
@@ -50,10 +48,9 @@
     .btns{position:absolute;right:12px;bottom:12px;display:flex;gap:8px;z-index:3}
     button{pointer-events:auto;appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}
     #btnNew{background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border)}
-    #btnSkip{background:linear-gradient(90deg,#ffe1e1,#ffd1d1);border:1px solid var(--panel-border)}
 
-    /* Bouton de timing principal */
-    #btnAction{position:relative;left:auto;bottom:auto;transform:none;width:100%;padding:16px 18px;border-radius:999px;font-size:18px;background:linear-gradient(90deg,var(--sea),var(--leaf));color:#07333a;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 24px rgba(0,0,0,.18);pointer-events:auto;z-index:3;margin-top:8px} 
+    /* Bouton de timing principal intégré au panneau */
+    #btnAction{position:relative;left:auto;bottom:auto;transform:none;width:100%;padding:16px 18px;border-radius:999px;font-size:18px;background:linear-gradient(90deg,var(--sea),var(--leaf));color:#07333a;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 24px rgba(0,0,0,.18);pointer-events:auto;z-index:3;margin-top:8px}
     #btnAction:disabled{opacity:.6;cursor:not-allowed;box-shadow:none}
 
     /* Message centre */
@@ -77,19 +74,6 @@
       .btns{bottom: calc(10px + env(safe-area-inset-bottom))}
       .topbar{padding:8px 10px; gap:6px}
     }
-      .mene{order:-2}
-      .right{width:100%;justify-content:flex-end}
-      .minimap-wrap{top:110px;right:8px;width:min(68vw,240px);padding:8px}
-      .mapbtn{display:block}
-      .dist{font-size:11px;max-height:80px}
-      .panel{bottom: calc(68px + env(safe-area-inset-bottom)); width: 94vw; padding:10px 12px}
-      .lbl{min-width:86px;font-size:13px}
-      .gauge{height:14px}
-      .tick{top:-5px;height:24px}
-      #btnAction{bottom: calc(10px + env(safe-area-inset-bottom)); padding:14px 20px; font-size:16px}
-      .btns{bottom: calc(10px + env(safe-area-inset-bottom))}
-      .topbar{padding:8px 10px; gap:6px}
-    }
   </style>
 </head>
 <body>
@@ -105,7 +89,6 @@
           <div class="badge p2" id="scoreP2">⚫️ Joueur 2 : 0</div>
         </div>
         <div class="right"></div>
-        </div>
       </div>
 
       <button id="btnMap" class="mapbtn" title="Afficher/masquer la minimap">🗺️</button>
@@ -114,11 +97,19 @@
         <ul class="dist" id="distList"></ul>
       </div>
 
-      <div class="panel" id="controls">$1
+      <div class="panel" id="controls">
+        <div class="row"><span class="lbl">Direction</span><div class="gauge"><div class="fill" id="dirFill"></div><div class="tick"></div></div></div>
+        <div class="row"><span class="lbl">Force</span><div class="gauge"><div class="fill" id="powFill"></div><div class="tick"></div></div></div>
+        <button id="btnAction">🎯 Arrêter la direction</button>
+      </div>
+
+      <div class="center-msg" id="msg" style="display:none">
+        <h2 id="msgTitle"></h2>
+        <p id="msgBody"></p>
+      </div>
 
       <div class="btns">
         <button id="btnNew">Nouvelle partie</button>
-        
       </div>
     </div>
   </div>
@@ -303,7 +294,13 @@
     state.starter=state.currentPlayer;
 
     function highlightCurrent(){ elScoreP1.classList.toggle('active', state.currentPlayer===1); elScoreP2.classList.toggle('active', state.currentPlayer===2); }
-    function updateHUD(){ elScoreP1.textContent=`⚪️ Joueur 1 : ${state.p1Score}`; elScoreP2.textContent=`⚫️ Joueur 2 : ${state.p2Score}`; elMene.textContent=`☀️ Mène ${state.mene}`; highlightCurrent(); updateActionButton(); }`; elScoreP2.textContent=`⚫️ Joueur 2 : ${state.p2Score}`; elMene.textContent=`☀️ Mène ${state.mene}`; elBallsLeft.textContent=`Boules restantes — J1: ${state.ballsLeftP1} | J2: ${state.ballsLeftP2}`; highlightCurrent(); updateActionButton(); }
+    function updateHUD(){
+      elScoreP1.textContent=`⚪️ Joueur 1 : ${state.p1Score}`;
+      elScoreP2.textContent=`⚫️ Joueur 2 : ${state.p2Score}`;
+      elMene.textContent=`☀️ Mène ${state.mene}`;
+      highlightCurrent();
+      updateActionButton();
+    }
     function flashMsg(title, body, time=1400){ elMsgTitle.textContent=title; elMsgBody.textContent=body; elMsg.style.display=''; clearTimeout(flashMsg._t); flashMsg._t=setTimeout(()=>elMsg.style.display='none', time); }
 
     function updateActionButton(){ if(state.ended){ btnAction.disabled=true; btnAction.textContent='🏁 Partie terminée'; return; } if(state.phase==='aim'){ btnAction.disabled=false; btnAction.textContent='🎯 Arrêter la direction'; btnAction.style.background='linear-gradient(90deg,var(--sea),var(--leaf))'; } else if(state.phase==='power'){ btnAction.disabled=false; btnAction.textContent='💥 Arrêter la force'; btnAction.style.background='linear-gradient(90deg,var(--coral),#ffb86c)'; } else { btnAction.disabled=true; btnAction.textContent='🌀 Lancer en cours…'; btnAction.style.background='linear-gradient(90deg,#ddd,#ccc)'; } }
@@ -322,7 +319,7 @@
     });
     window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); btnAction.click(); } });
 
-    document.getElementById('btnNew').addEventListener('click', resetMatch); state.activeBall.vel.set(0,0,0);} state.phase='aim'; state.dirT=0; state.powT=0; state.throwTimer=0; updateHUD(); flashMsg(`Joueur ${state.currentPlayer}`, 'Lancer annulé. Reprenez la visée.'); });
+    document.getElementById('btnNew').addEventListener('click', resetMatch);
 
     btnMap.addEventListener('click', ()=>{ const h = elMinimapWrap.style.display !== 'none'; elMinimapWrap.style.display = h ? 'none' : ''; });
 
@@ -369,8 +366,6 @@
       console.assert(ground.material.bumpScale>=0.018,'Terrain plus texturé que plage');
       // Bouton actif quand on vise
       (function(){ const prev=state.phase; state.phase='aim'; updateActionButton(); console.assert(!btnAction.disabled,'Bouton actif en phase aim'); state.phase=prev; updateActionButton(); })();
-      // Libellé boules restantes
-      
       // Mobile: minimap réduite et bouton dans le viewport
       setTimeout(()=>{
         const rect = btnAction.getBoundingClientRect();
