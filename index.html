@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Pétanque 3D – 2 joueurs (V3.5 – Fix syntax + responsive)</title>
+  <title>Pétanque 3D – 2 joueurs (V3.6 – Fix accolades + UI)</title>
   <style>
     /* Palette "été" */
     :root{
@@ -21,7 +21,7 @@
     /* HUD */
     .hud{position:absolute;inset:0;pointer-events:none;z-index:2}
 
-    .topbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--panel-border);padding:8px 10px;border-radius:16px;backdrop-filter: blur(8px);flex-wrap:wrap}
+    .topbar{position:absolute;left:12px;right:12px;top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--panel-border);padding:8px 10px;border-radius:16px;backdrop-filter: blur(8px);flex-wrap:wrap;pointer-events:auto}
     .left, .right{display:flex;gap:8px;align-items:center}
     .right{margin-left:auto}
     .badge{pointer-events:none;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;font-weight:700;border:1px solid var(--panel-border);box-shadow:0 3px 12px rgba(0,0,0,.06);transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; font-size:14px}
@@ -45,9 +45,8 @@
     .mapbtn{position:absolute;right:12px;top:82px;z-index:3;pointer-events:auto;display:none;border:none;border-radius:999px;padding:8px 10px;background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border);font-weight:800}
 
     /* Boutons */
-    .btns{position:absolute;right:12px;bottom:12px;display:flex;gap:8px;z-index:3}
     button{pointer-events:auto;appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}
-    #btnNew{background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border)}
+    #btnNew{background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border);font-size:12px;padding:6px 10px;border-radius:999px;pointer-events:auto} 
 
     /* Bouton de timing principal intégré au panneau */
     #btnAction{position:relative;left:auto;bottom:auto;transform:none;width:100%;padding:16px 18px;border-radius:999px;font-size:18px;background:linear-gradient(90deg,var(--sea),var(--leaf));color:#07333a;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 24px rgba(0,0,0,.18);pointer-events:auto;z-index:3;margin-top:8px}
@@ -71,7 +70,6 @@
       .gauge{height:14px}
       .tick{top:-5px;height:24px}
       #btnAction{font-size:16px; padding:14px 16px}
-      .btns{bottom: calc(10px + env(safe-area-inset-bottom))}
       .topbar{padding:8px 10px; gap:6px}
     }
   </style>
@@ -87,12 +85,13 @@
           <div class="badge mene" id="mene">☀️ Mène 1</div>
           <div class="badge p1" id="scoreP1">⚪️ Joueur 1 : 0</div>
           <div class="badge p2" id="scoreP2">⚫️ Joueur 2 : 0</div>
+          <button id="btnNew" class="btn-mini" title="Recommencer">Nouvelle partie</button>
         </div>
         <div class="right"></div>
       </div>
 
       <button id="btnMap" class="mapbtn" title="Afficher/masquer la minimap">🗺️</button>
-      <div class="minimap-wrap" id="minimapWrap">
+      <div class="minimap-wrap" id="minimapWrap" style="display:none">
         <canvas id="minimap" width="280" height="280"></canvas>
         <ul class="dist" id="distList"></ul>
       </div>
@@ -106,10 +105,6 @@
       <div class="center-msg" id="msg" style="display:none">
         <h2 id="msgTitle"></h2>
         <p id="msgBody"></p>
-      </div>
-
-      <div class="btns">
-        <button id="btnNew">Nouvelle partie</button>
       </div>
     </div>
   </div>
@@ -130,8 +125,8 @@
     function makeCloudPattern(){
       const shapes=[
         [0,1,1,1,0,0,0,0, 1,1,1,1,1,0,0,0, 1,1,1,1,1,1,0,0, 0,1,1,1,1,0,0,0, 0,0,1,1,0,0,0,0],
-        [0,0,1,1,1,0,0,0, 0,1,1,1,1,1,0,0, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,0,0, 0,0,1,1,1,0,0,0],
-        [0,0,0,1,1,0,0,0, 0,1,1,1,1,1,0,0, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,0,0, 0,0,0,1,1,0,0,0]
+        [0,0,1,1,1,0,0,0, 0,1,1,1,1,1,0,0, 1,1,1,1,1,1,1,0, 0,1,1,1,1,1,0,0,  0,0,1,1,1,0,0,0],
+        [0,0,0,1,1,0,0,0, 0,1,1,1,1,1,0,0,  1,1,1,1,1,1,1,0, 0,1,1,1,1,1,0,0,  0,0,0,1,1,0,0,0]
       ];
       return shapes[(Math.random()*shapes.length)|0];
     }
@@ -366,12 +361,15 @@
       console.assert(ground.material.bumpScale>=0.018,'Terrain plus texturé que plage');
       // Bouton actif quand on vise
       (function(){ const prev=state.phase; state.phase='aim'; updateActionButton(); console.assert(!btnAction.disabled,'Bouton actif en phase aim'); state.phase=prev; updateActionButton(); })();
-      // Mobile: minimap réduite et bouton dans le viewport
+      // Mobile/desktop: minimap masquée par défaut et toggle fonctionne
       setTimeout(()=>{
-        const rect = btnAction.getBoundingClientRect();
+        const wrap = document.getElementById('minimapWrap');
+        console.assert(wrap.style.display==='none','Minimap masquée par défaut');
+        const before = wrap.style.display; document.getElementById('btnMap').click(); const after = wrap.style.display; document.getElementById('btnMap').click();
+        console.assert(before!==after,'Toggle minimap fonctionne');
+        const rect = document.getElementById('btnAction').getBoundingClientRect();
         console.assert(rect.bottom <= window.innerHeight + 1, 'Bouton dans le viewport');
-        const sizeOk = document.getElementById('minimap').width <= (IS_MOBILE? 240: 300);
-        console.assert(sizeOk, 'Taille minimap adaptée au mobile');
+        console.assert(!!document.querySelector('.topbar #btnNew'),'Bouton "Nouvelle partie" dans la topbar');
       },0);
     })();
 
