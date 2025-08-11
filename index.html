@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Pétanque 3D – 2 joueurs (V3.6 – Fix accolades + UI)</title>
+  <title>Pétanque 3D – 2 joueurs (V3.7 – Fix syntax + UI)</title>
   <style>
     /* Palette "été" */
     :root{
@@ -42,11 +42,10 @@
     .minimap-wrap{position:absolute;right:12px;top:82px;width:280px;background:var(--panel);border:1px solid var(--panel-border);padding:10px;border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.12)}
     #minimap{display:block;width:100%;height:auto;border-radius:12px;background:linear-gradient(180deg,#e9fbff,#fef7e3);border:1px solid var(--panel-border)}
     .dist{margin:8px 0 0 0;padding:0;list-style:none;font-size:12px;max-height:120px;overflow:auto;color:#285268}
-    .mapbtn{position:absolute;right:12px;top:82px;z-index:3;pointer-events:auto;display:none;border:none;border-radius:999px;padding:8px 10px;background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border);font-weight:800}
+    .mapbtn{position:absolute;right:12px;top:82px;z-index:3;pointer-events:auto;display:block;border:none;border-radius:999px;padding:8px 10px;background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border);font-weight:800}
 
     /* Boutons */
     button{pointer-events:auto;appearance:none;border:none;border-radius:12px;padding:10px 14px;font-weight:800;cursor:pointer}
-    #btnNew{background:linear-gradient(90deg,#fff,#f6f6f6);border:1px solid var(--panel-border);font-size:12px;padding:6px 10px;border-radius:999px;pointer-events:auto} 
 
     /* Bouton de timing principal intégré au panneau */
     #btnAction{position:relative;left:auto;bottom:auto;transform:none;width:100%;padding:16px 18px;border-radius:999px;font-size:18px;background:linear-gradient(90deg,var(--sea),var(--leaf));color:#07333a;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 24px rgba(0,0,0,.18);pointer-events:auto;z-index:3;margin-top:8px}
@@ -56,6 +55,12 @@
     .center-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;background:rgba(255,255,255,.65);padding:12px 14px;border-radius:16px;border:1px solid var(--panel-border);backdrop-filter: blur(8px);pointer-events:none;z-index:3}
     .center-msg h2{margin:0 0 6px 0;font-weight:900;letter-spacing:.3px;color:#0e2b3b;font-size:18px}
     .center-msg p{margin:0;color:#2c4a57;font-size:14px}
+
+    /* Fin de partie */
+    .end-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);backdrop-filter: blur(3px);z-index:4}
+    .end-card{background:var(--panel);border:1px solid var(--panel-border);padding:18px 16px;border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.25);text-align:center;min-width: min(90vw, 380px)}
+    .end-card h2{margin:.2rem 0 .4rem 0}
+    .end-btn{margin-top:10px;padding:14px 18px;border-radius:999px;font-weight:900;background:linear-gradient(90deg,var(--sea),var(--leaf));color:#07333a;border:1px solid rgba(0,0,0,.08);box-shadow:0 10px 24px rgba(0,0,0,.18)}
 
     /* ===== Mobile ===== */
     @media (max-width: 480px){
@@ -85,7 +90,6 @@
           <div class="badge mene" id="mene">☀️ Mène 1</div>
           <div class="badge p1" id="scoreP1">⚪️ Joueur 1 : 0</div>
           <div class="badge p2" id="scoreP2">⚫️ Joueur 2 : 0</div>
-          <button id="btnNew" class="btn-mini" title="Recommencer">Nouvelle partie</button>
         </div>
         <div class="right"></div>
       </div>
@@ -105,6 +109,13 @@
       <div class="center-msg" id="msg" style="display:none">
         <h2 id="msgTitle"></h2>
         <p id="msgBody"></p>
+      </div>
+      <div id="endOverlay" class="end-overlay" style="display:none">
+        <div class="end-card">
+          <h2>Partie terminée</h2>
+          <p id="endMsg"></p>
+          <button id="btnNewEnd" class="end-btn">Nouvelle partie</button>
+        </div>
       </div>
     </div>
   </div>
@@ -284,6 +295,9 @@
     const elMinimapWrap=document.getElementById('minimapWrap');
     const btnMap=document.getElementById('btnMap');
     const btnAction=document.getElementById('btnAction');
+    const endOverlay=document.getElementById('endOverlay');
+    const endMsg=document.getElementById('endMsg');
+    const btnNewEnd=document.getElementById('btnNewEnd');
 
     const state={ p1Score:0, p2Score:0, mene:1, ballsLeftP1:BALLS_PER_PLAYER, ballsLeftP2:BALLS_PER_PLAYER, currentPlayer: Math.random()<.5?1:2, phase:'aim', dirT:0, powT:0, lockedYaw:0, power:0.6, activeBall:null, ended:false, meneDead:false, starter:1, throwTimer:0 };
     state.starter=state.currentPlayer;
@@ -302,8 +316,21 @@
 
     function resizeMinimap(){ const size = IS_MOBILE ? 220 : 280; elMinimap.width=size; elMinimap.height=size; }
 
-    function resetMene(whoStarts=1){ balls.splice(0).forEach(b=>b.remove()); jack=new Ball(JACK_R,JACK_M,matJack,'JACK'); const JACK_MIN_D=6.5, JACK_MAX_D=11.0; const marginX = JACK_R + 0.05; const halfX = COURT_W/2 - marginX; const d = THREE.MathUtils.randFloat(JACK_MIN_D, JACK_MAX_D); const jackZ = ORIGIN_Z + d; const jackX = THREE.MathUtils.randFloat(-halfX, halfX); const zMin = -COURT_L/2 + JACK_R + 0.05; const zMax =  COURT_L/2 - JACK_R - 0.05; jack.pos.set(jackX, JACK_R, Math.min(zMax, Math.max(zMin, jackZ))); balls.push(jack); state.ballsLeftP1=BALLS_PER_PLAYER; state.ballsLeftP2=BALLS_PER_PLAYER; state.phase='aim'; state.dirT=0; state.powT=0; state.lockedYaw=0; state.power=0.6; state.activeBall=null; state.meneDead=false; state.currentPlayer=whoStarts; state.starter=whoStarts; state.throwTimer=0; updateHUD(); { const dcalc = (jack.pos.z - ORIGIN_Z).toFixed(1); flashMsg(`Mène ${state.mene}`, `Cochonnet à ${dcalc} m`); } }
-    function resetMatch(){ state.p1Score=0; state.p2Score=0; state.mene=1; state.ended=false; resetMene(Math.random()<.5?1:2); }
+    function resetMene(whoStarts=1){
+      balls.splice(0).forEach(b=>b.remove());
+      jack=new Ball(JACK_R,JACK_M,matJack,'JACK');
+      const JACK_MIN_D=6.5, JACK_MAX_D=11.0;
+      const marginX = JACK_R + 0.05; const halfX = COURT_W/2 - marginX;
+      const d = THREE.MathUtils.randFloat(JACK_MIN_D, JACK_MAX_D); const jackZ = ORIGIN_Z + d; const jackX = THREE.MathUtils.randFloat(-halfX, halfX);
+      const zMin = -COURT_L/2 + JACK_R + 0.05; const zMax =  COURT_L/2 - JACK_R - 0.05;
+      jack.pos.set(jackX, JACK_R, Math.min(zMax, Math.max(zMin, jackZ)));
+      balls.push(jack);
+      state.ballsLeftP1=BALLS_PER_PLAYER; state.ballsLeftP2=BALLS_PER_PLAYER;
+      state.phase='aim'; state.dirT=0; state.powT=0; state.lockedYaw=0; state.power=0.6; state.activeBall=null; state.meneDead=false; state.currentPlayer=whoStarts; state.starter=whoStarts; state.throwTimer=0;
+      updateHUD();
+      { const dcalc = (jack.pos.z - ORIGIN_Z).toFixed(1); flashMsg(`Mène ${state.mene}`, `Cochonnet à ${dcalc} m`); }
+    }
+    function resetMatch(){ state.p1Score=0; state.p2Score=0; state.mene=1; state.ended=false; endOverlay.style.display='none'; resetMene(Math.random()<.5?1:2); }
 
     // Actions au bouton (et barre espace)
     btnAction.addEventListener('click', ()=>{
@@ -314,22 +341,58 @@
     });
     window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); btnAction.click(); } });
 
-    document.getElementById('btnNew').addEventListener('click', resetMatch);
-
     btnMap.addEventListener('click', ()=>{ const h = elMinimapWrap.style.display !== 'none'; elMinimapWrap.style.display = h ? 'none' : ''; });
+
+    function showEndOverlay(champ){ endMsg.textContent = `Bravo Joueur ${champ} !`; endOverlay.style.display='flex'; }
+    function hideEndOverlay(){ endOverlay.style.display='none'; }
+    btnNewEnd.addEventListener('click', ()=>{ hideEndOverlay(); resetMatch(); });
 
     function canPlayerThrow(p){ return p===1? state.ballsLeftP1>0 : state.ballsLeftP2>0; }
     function decBall(p){ if(p===1) state.ballsLeftP1--; else state.ballsLeftP2--; }
 
-    function launchBall(){ if(!canPlayerThrow(state.currentPlayer)) return; const mat = state.currentPlayer===1?matLight:matDark; const b=new Ball(BOULE_R,BOULE_M,mat,state.currentPlayer); const p = finite(state.power)? state.power : 0.6; const yaw = finite(state.lockedYaw)? state.lockedYaw : 0; const v0 = SPEED_BASE * p * POWER_SCALE; const elev = ELEV_MIN + (ELEV_MAX - ELEV_MIN)*(Math.sqrt(p)); const dirXZ = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw); const vh = v0 * Math.cos(elev); const vy = v0 * Math.sin(elev); b.pos.set(0,BOULE_R,ORIGIN_Z); b.vel.set(dirXZ.x*vh, vy, dirXZ.z*vh); balls.push(b); state.activeBall=b; decBall(state.currentPlayer); state.phase='flying'; state.throwTimer=0; updateHUD(); }
+    function launchBall(){
+      if(!canPlayerThrow(state.currentPlayer)) return;
+      const mat = state.currentPlayer===1?matLight:matDark;
+      const b=new Ball(BOULE_R,BOULE_M,mat,state.currentPlayer);
+      const p = finite(state.power)? state.power : 0.6;
+      const yaw = finite(state.lockedYaw)? state.lockedYaw : 0;
+      const v0 = SPEED_BASE * p * POWER_SCALE;
+      const elev = ELEV_MIN + (ELEV_MAX - ELEV_MIN)*(Math.sqrt(p));
+      const dirXZ = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+      const vh = v0 * Math.cos(elev); const vy = v0 * Math.sin(elev);
+      b.pos.set(0,BOULE_R,ORIGIN_Z); b.vel.set(dirXZ.x*vh, vy, dirXZ.z*vh);
+      balls.push(b); state.activeBall=b; decBall(state.currentPlayer);
+      state.phase='flying'; state.throwTimer=0; updateHUD();
+    }
 
     const horizLen = b => Math.hypot(b.vel.x, b.vel.z);
 
     function stepOnce(dt){
-      for(const b of balls){ if(!b.alive||b.atRest) continue; const isJack=(b.owner==='JACK'); if(!isJack){ b.vel.y += GRAVITY*dt; } if(!finite3(b.vel)){ b.vel.set(0,0,0); b.atRest=true; continue; } b.pos.addScaledVector(b.vel, dt); if(!finite3(b.pos)){ b.pos.set(0,b.r,ORIGIN_Z+0.5); b.vel.set(0,0,0); b.atRest=true; } const yMin=b.r; let contact=false; if(b.pos.y < yMin){ b.pos.y=yMin; contact=true; if(!isJack){ if(Math.abs(b.vel.y)>0.05) b.vel.y = -b.vel.y*RESTITUTION; else b.vel.y=0; } } if(b.pos.y === yMin) contact = true; if(contact){ b.groundTime += dt; const vH = horizLen(b); if(!b.rolling){ const decel = MU_SLIDE * Math.abs(GRAVITY); const newV = Math.max(0, vH - decel*dt); if(vH>0){ const k = newV/(vH||1e-6); b.vel.x *= k; b.vel.z *= k; } if(b.groundTime>0.16 || newV<1.2){ b.rolling=true; } } else { const vH2 = horizLen(b); const base = MU_ROLL * Math.abs(GRAVITY); const drag = K_DRAG * vH2 * vH2; const decel = base + drag; const newV = Math.max(0, vH2 - decel*dt); if(vH2>0){ const k = newV/(vH2||1e-6); b.vel.x *= k; b.vel.z *= k; } } } else { b.groundTime = 0; } }
+      for(const b of balls){
+        if(!b.alive||b.atRest) continue; const isJack=(b.owner==='JACK');
+        if(!isJack){ b.vel.y += GRAVITY*dt; }
+        if(!finite3(b.vel)){ b.vel.set(0,0,0); b.atRest=true; continue; }
+        b.pos.addScaledVector(b.vel, dt);
+        if(!finite3(b.pos)){ b.pos.set(0,b.r,ORIGIN_Z+0.5); b.vel.set(0,0,0); b.atRest=true; }
+        const yMin=b.r; let contact=false; if(b.pos.y < yMin){ b.pos.y=yMin; contact=true; if(!isJack){ if(Math.abs(b.vel.y)>0.05) b.vel.y = -b.vel.y*RESTITUTION; else b.vel.y=0; } } if(b.pos.y === yMin) contact = true;
+        if(contact){ b.groundTime += dt; const vH = horizLen(b);
+          if(!b.rolling){ const decel = MU_SLIDE * Math.abs(GRAVITY); const newV = Math.max(0, vH - decel*dt); if(vH>0){ const k = newV/(vH||1e-6); b.vel.x *= k; b.vel.z *= k; } if(b.groundTime>0.16 || newV<1.2){ b.rolling=true; } }
+          else { const vH2 = horizLen(b); const base = MU_ROLL * Math.abs(GRAVITY); const drag = K_DRAG * vH2 * vH2; const decel = base + drag; const newV = Math.max(0, vH2 - decel*dt); if(vH2>0){ const k = newV/(vH2||1e-6); b.vel.x *= k; b.vel.z *= k; } }
+        } else { b.groundTime = 0; }
+      }
 
       for(let i=0;i<balls.length;i++) for(let j=i+1;j<balls.length;j++){
-        const a=balls[i], b=balls[j]; if(!a.alive||!b.alive) continue; const rad=a.r+b.r; const dx=b.pos.x-a.pos.x, dy=b.pos.y-a.pos.y, dz=b.pos.z-a.pos.z; const d2=dx*dx+dy*dy+dz*dz; if(!finite(d2) || d2>rad*rad) continue; const d=Math.sqrt(Math.max(1e-6,d2)); const nx=dx/d, ny=dy/d, nz=dz/d; const overlap=rad-d; const total=a.m+b.m; a.pos.x -= nx*overlap*(b.m/total); a.pos.y -= ny*overlap*(b.m/total); a.pos.z -= nz*overlap*(b.m/total); b.pos.x += nx*overlap*(a.m/total); b.pos.y += ny*overlap*(a.m/total); b.pos.z += nz*overlap*(a.m/total); const rvx=b.vel.x-a.vel.x, rvy=b.vel.y-a.vel.y, rvz=b.vel.z-a.vel.z; const rel=rvx*nx + rvy*ny + rvz*nz; if(!finite(rel)) continue; if(rel>0) continue; const jn=-(1+E_BALL)*rel/(1/a.m+1/b.m); const ix=jn*nx, iy=jn*ny, iz=jn*nz; a.vel.x -= ix/a.m; a.vel.y -= iy/a.m; a.vel.z -= iz/a.m; b.vel.x += ix/b.m; b.vel.y += iy/b.m; b.vel.z += iz/b.m; const tvx = rvx - rel*nx, tvy = rvy - rel*ny, tvz = rvz - rel*nz; const tvlen = Math.hypot(tvx,tvy,tvz); if(tvlen>1e-6){ const tx=tvx/tvlen, ty=tvy/tvlen, tz=tvz/tvlen; const maxJt = MU_COLL * jn; const jt = Math.min(maxJt, tvlen/(1/a.m + 1/b.m)); const tix=jt*tx, tiy=jt*ty, tiz=jt*tz; a.vel.x -= tix/a.m; a.vel.y -= tiy/a.m; a.vel.z -= tiz/a.m; b.vel.x += tix/b.m; b.vel.y += tiy/b.m; b.vel.z += tiz/b.m; } a.atRest=false; b.atRest=false; a.restTimer=0; b.restTimer=0; a.rolling=false; b.rolling=false; a.groundTime=0; b.groundTime=0; }
+        const a=balls[i], b=balls[j]; if(!a.alive||!b.alive) continue;
+        const rad=a.r+b.r; const dx=b.pos.x-a.pos.x, dy=b.pos.y-a.pos.y, dz=b.pos.z-a.pos.z; const d2=dx*dx+dy*dy+dz*dz; if(!finite(d2) || d2>rad*rad) continue;
+        const d=Math.sqrt(Math.max(1e-6,d2)); const nx=dx/d, ny=dy/d, nz=dz/d; const overlap=rad-d; const total=a.m+b.m;
+        a.pos.x -= nx*overlap*(b.m/total); a.pos.y -= ny*overlap*(b.m/total); a.pos.z -= nz*overlap*(b.m/total);
+        b.pos.x += nx*overlap*(a.m/total); b.pos.y += ny*overlap*(a.m/total); b.pos.z += nz*overlap*(a.m/total);
+        const rvx=b.vel.x-a.vel.x, rvy=b.vel.y-a.vel.y, rvz=b.vel.z-a.vel.z; const rel=rvx*nx + rvy*ny + rvz*nz; if(!finite(rel)) continue; if(rel>0) continue;
+        const jn=-(1+E_BALL)*rel/(1/a.m+1/b.m); const ix=jn*nx, iy=jn*ny, iz=jn*nz; a.vel.x -= ix/a.m; a.vel.y -= iy/a.m; a.vel.z -= iz/a.m; b.vel.x += ix/b.m; b.vel.y += iy/b.m; b.vel.z += iz/b.m;
+        const tvx = rvx - rel*nx, tvy = rvy - rel*ny, tvz = rvz - rel*nz; const tvlen = Math.hypot(tvx,tvy,tvz);
+        if(tvlen>1e-6){ const tx=tvx/tvlen, ty=tvy/tvlen, tz=tvz/tvlen; const maxJt = MU_COLL * jn; const jt = Math.min(maxJt, tvlen/(1/a.m + 1/b.m)); const tix=jt*tx, tiy=jt*ty, tiz=jt*tz; a.vel.x -= tix/a.m; a.vel.y -= tiy/a.m; a.vel.z -= tiz/a.m; b.vel.x += tix/b.m; b.vel.y += tiy/b.m; b.vel.z += tiz/b.m; }
+        a.atRest=false; b.atRest=false; a.restTimer=0; b.restTimer=0; a.rolling=false; b.rolling=false; a.groundTime=0; b.groundTime=0;
+      }
 
       for(const b of balls){ if(!b.alive) continue; const onGround=b.pos.y<=b.r+1e-3; if(onGround && (b.vel.lengthSq()<0.0025)){ b.restTimer+=dt; if(b.restTimer>0.5){ b.atRest=true; b.vel.set(0,0,0);} } else b.restTimer=0; }
 
@@ -338,17 +401,73 @@
 
     function stepPhysics(dt){ if(!finite(dt) || dt<=0) return; const maxSubDt = 1/120; let t = dt; while(t>0){ const h = Math.min(maxSubDt, t); stepOnce(h); t -= h; } }
 
-    function afterThrowCheck(){ if(state.phase!=='flying') return; const anyMoving=balls.some(b=>b.alive && !b.atRest && b.owner!=='JACK'); const ballActiveAlive=state.activeBall && state.activeBall.alive && !state.activeBall.atRest; if(anyMoving || ballActiveAlive) return; state.activeBall=null; const noMore=(state.ballsLeftP1===0 && state.ballsLeftP2===0); if(state.meneDead || noMore){ scoreMene(); return; } const dist = (owner)=>{ let best=Infinity; for(const b of balls){ if(b.alive && b.owner===owner){ const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); if(Number.isFinite(d) && d<best) best=d; }} return best; }; const d1 = dist(1), d2 = dist(2); const EPS = 1e-6; let leader = 0; if(d1 + EPS < d2) leader = 1; else if(d2 + EPS < d1) leader = 2; else leader = 0; if(leader===0){ const next = state.currentPlayer; if((next===1 && state.ballsLeftP1>0) || (next===2 && state.ballsLeftP2>0)){ state.phase='aim'; state.dirT=0; state.powT=0; state.throwTimer=0; updateHUD(); flashMsg(`Égalité au point`, `Joueur ${next} rejoue.`); return; } } let nextPlayer; if(leader===1){ nextPlayer = (state.ballsLeftP2>0) ? 2 : (state.ballsLeftP1>0 ? 1 : null); } else if(leader===2){ nextPlayer = (state.ballsLeftP1>0) ? 1 : (state.ballsLeftP2>0 ? 2 : null); } else { nextPlayer = (state.currentPlayer===1 && state.ballsLeftP1>0) ? 1 : (state.ballsLeftP2>0 ? 2 : null); } if(nextPlayer==null){ scoreMene(); return; } state.currentPlayer=nextPlayer; state.phase='aim'; state.dirT=0; state.powT=0; state.throwTimer=0; updateHUD(); flashMsg(`Joueur ${state.currentPlayer}`, `À vous de jouer !`); }
+    function afterThrowCheck(){
+      if(state.phase!=='flying') return;
+      const anyMoving=balls.some(b=>b.alive && !b.atRest && b.owner!=='JACK');
+      const ballActiveAlive=state.activeBall && state.activeBall.alive && !state.activeBall.atRest;
+      if(anyMoving || ballActiveAlive) return;
+      state.activeBall=null;
+      const noMore=(state.ballsLeftP1===0 && state.ballsLeftP2===0);
+      if(state.meneDead || noMore){ scoreMene(); return; }
+      const dist = (owner)=>{ let best=Infinity; for(const b of balls){ if(b.alive && b.owner===owner){ const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); if(Number.isFinite(d) && d<best) best=d; }} return best; };
+      const d1 = dist(1), d2 = dist(2); const EPS = 1e-6; let leader = 0; if(d1 + EPS < d2) leader = 1; else if(d2 + EPS < d1) leader = 2; else leader = 0;
+      if(leader===0){ const next = state.currentPlayer; if((next===1 && state.ballsLeftP1>0) || (next===2 && state.ballsLeftP2>0)){ state.phase='aim'; state.dirT=0; state.powT=0; state.throwTimer=0; updateHUD(); flashMsg(`Égalité au point`, `Joueur ${next} rejoue.`); return; } }
+      let nextPlayer;
+      if(leader===1){ nextPlayer = (state.ballsLeftP2>0) ? 2 : (state.ballsLeftP1>0 ? 1 : null); }
+      else if(leader===2){ nextPlayer = (state.ballsLeftP1>0) ? 1 : (state.ballsLeftP2>0 ? 2 : null); }
+      else { nextPlayer = (state.currentPlayer===1 && state.ballsLeftP1>0) ? 1 : (state.ballsLeftP2>0 ? 2 : null); }
+      if(nextPlayer==null){ scoreMene(); return; }
+      state.currentPlayer=nextPlayer; state.phase='aim'; state.dirT=0; state.powT=0; state.throwTimer=0; updateHUD(); flashMsg(`Joueur ${state.currentPlayer}`, `À vous de jouer !`);
+    }
 
-    function scoreMene(){ if(state.meneDead || !jack){ flashMsg('Mène annulée','Le cochonnet est sorti. Personne ne marque.'); state.mene++; resetMene(state.starter); updateHUD(); return; } const p1=balls.filter(b=>b.alive&&b.owner===1), p2=balls.filter(b=>b.alive&&b.owner===2); const dist=b=>{ const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); return finite(d)? d:Infinity; }; const p1d=p1.map(dist).sort((a,b)=>a-b), p2d=p2.map(dist).sort((a,b)=>a-b); const best1=p1d[0]??Infinity, best2=p2d[0]??Infinity; let winner=0, points=0; if(best1<best2){ winner=1; points=p1d.filter(d=>d<best2).length; } else if(best2<best1){ winner=2; points=p2d.filter(d=>d<best1).length; } if(winner===1) state.p1Score+=points; if(winner===2) state.p2Score+=points; if(winner===0) flashMsg('Mène nulle','Personne ne marque.'); else flashMsg(`Point pour Joueur ${winner} (+${points})`, 'Le gagnant commence la prochaine mène.'); if(state.p1Score>=TARGET_SCORE || state.p2Score>=TARGET_SCORE){ state.ended=true; const champ=state.p1Score>state.p2Score?1:2; flashMsg('Partie terminée', `Bravo Joueur ${champ} ! « Nouvelle partie » pour rejouer.`, 4000); updateActionButton(); updateHUD(); return; } state.mene++; const nextStarter= winner===0? state.starter : winner; resetMene(nextStarter); updateHUD(); }
+    function scoreMene(){
+      if(state.meneDead || !jack){ flashMsg('Mène annulée','Le cochonnet est sorti. Personne ne marque.'); state.mene++; resetMene(state.starter); updateHUD(); return; }
+      const p1=balls.filter(b=>b.alive&&b.owner===1), p2=balls.filter(b=>b.alive&&b.owner===2);
+      const dist=b=>{ const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); return finite(d)? d:Infinity; };
+      const p1d=p1.map(dist).sort((a,b)=>a-b), p2d=p2.map(dist).sort((a,b)=>a-b);
+      const best1=p1d[0]??Infinity, best2=p2d[0]??Infinity;
+      let winner=0, points=0;
+      if(best1<best2){ winner=1; points=p1d.filter(d=>d<best2).length; }
+      else if(best2<best1){ winner=2; points=p2d.filter(d=>d<best1).length; }
+      if(winner===1) state.p1Score+=points;
+      if(winner===2) state.p2Score+=points;
+      if(winner===0) flashMsg('Mène nulle','Personne ne marque.');
+      else flashMsg(`Point pour Joueur ${winner} (+${points})`, 'Le gagnant commence la prochaine mène.');
+      if(state.p1Score>=TARGET_SCORE || state.p2Score>=TARGET_SCORE){ state.ended=true; const champ=state.p1Score>state.p2Score?1:2; showEndOverlay(champ); updateActionButton(); updateHUD(); return; }
+      state.mene++; const nextStarter= winner===0? state.starter : winner; resetMene(nextStarter); updateHUD();
+    }
 
     // Minimap
-    function drawMinimap(){ const Wm=elMinimap.width,Hm=elMinimap.height; const mctx=elMinimap.getContext('2d'); mctx.clearRect(0,0,Wm,Hm); const grad=mctx.createLinearGradient(0,0,0,Hm); grad.addColorStop(0,'#e9fbff'); grad.addColorStop(1,'#fff1d1'); mctx.fillStyle=grad; mctx.fillRect(0,0,Wm,Hm); mctx.strokeStyle='rgba(0,0,0,.15)'; mctx.lineWidth=2; mctx.strokeRect(1,1,Wm-2,Hm-2); if(!jack||!finite3(jack.pos)){ distList.innerHTML=''; return; } const scale=1.5*(Wm-20)/Math.max(COURT_W, COURT_L*0.6); const cx=Wm/2, cy=Hm/2; const proj=(x,z)=>[cx+(x-jack.pos.x)*scale, cy+(z-jack.pos.z)*scale]; mctx.strokeStyle='rgba(0,0,0,.2)'; mctx.lineWidth=1; const rp1=proj(-COURT_W/2,-COURT_L/2), rp2=proj(COURT_W/2,COURT_L/2); mctx.strokeRect(Math.min(rp1[0],rp2[0]), Math.min(rp1[1],rp2[1]), Math.abs(rp2[0]-rp1[0]), Math.abs(rp2[1]-rp1[1])); const j=proj(jack.pos.x,jack.pos.z); mctx.fillStyle='#ff3bd4'; mctx.beginPath(); mctx.arc(j[0],j[1],5,0,Math.PI*2); mctx.fill(); const list=[]; for(const b of balls){ if(!b.alive||b.owner==='JACK'||!finite3(b.pos)) continue; const c=proj(b.pos.x,b.pos.z); mctx.fillStyle=(b.owner===1)?'#cfcfcf':'#666666'; mctx.beginPath(); mctx.arc(c[0],c[1],6,0,Math.PI*2); mctx.fill(); const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); list.push({owner:b.owner, d:finite(d)?d:Infinity}); } list.sort((a,b)=>a.d-b.d); distList.innerHTML=list.map((e,i)=>`<li>${i+1}. J${e.owner} — ${Number.isFinite(e.d)? e.d.toFixed(2)+' m' : '—'}</li>`).join(''); }
+    function drawMinimap(){
+      const Wm=elMinimap.width,Hm=elMinimap.height; const mctx=elMinimap.getContext('2d');
+      mctx.clearRect(0,0,Wm,Hm);
+      const grad=mctx.createLinearGradient(0,0,0,Hm); grad.addColorStop(0,'#e9fbff'); grad.addColorStop(1,'#fff1d1');
+      mctx.fillStyle=grad; mctx.fillRect(0,0,Wm,Hm);
+      mctx.strokeStyle='rgba(0,0,0,.15)'; mctx.lineWidth=2; mctx.strokeRect(1,1,Wm-2,Hm-2);
+      if(!jack||!finite3(jack.pos)){ distList.innerHTML=''; return; }
+      const scale=1.5*(Wm-20)/Math.max(COURT_W, COURT_L*0.6);
+      const cx=Wm/2, cy=Hm/2; const proj=(x,z)=>[cx+(x-jack.pos.x)*scale, cy+(z-jack.pos.z)*scale];
+      mctx.strokeStyle='rgba(0,0,0,.2)'; mctx.lineWidth=1;
+      const rp1=proj(-COURT_W/2,-COURT_L/2), rp2=proj(COURT_W/2,COURT_L/2);
+      mctx.strokeRect(Math.min(rp1[0],rp2[0]), Math.min(rp1[1],rp2[1]), Math.abs(rp2[0]-rp1[0]), Math.abs(rp2[1]-rp1[1]));
+      const j=proj(jack.pos.x,jack.pos.z); mctx.fillStyle='#ff3bd4'; mctx.beginPath(); mctx.arc(j[0],j[1],5,0,Math.PI*2); mctx.fill();
+      const list=[];
+      for(const b of balls){ if(!b.alive||b.owner==='JACK'||!finite3(b.pos)) continue; const c=proj(b.pos.x,b.pos.z); mctx.fillStyle=(b.owner===1)?'#cfcfcf':'#666666'; mctx.beginPath(); mctx.arc(c[0],c[1],6,0,Math.PI*2); mctx.fill(); const dx=b.pos.x-jack.pos.x, dz=b.pos.z-jack.pos.z; const d=Math.sqrt(dx*dx+dz*dz); list.push({owner:b.owner, d:finite(d)?d:Infinity}); }
+      list.sort((a,b)=>a.d-b.d);
+      distList.innerHTML=list.map((e,i)=>`<li>${i+1}. J${e.owner} — ${Number.isFinite(e.d)? e.d.toFixed(2)+' m' : '—'}</li>`).join('');
+    }
 
     // Boucle
     let last=performance.now();
-    function animate(t){ const raw=(t-last)/1000; const dt=(Number.isFinite(raw)&&raw>0)?Math.min(0.033,raw):0.016; last=t; if(state.phase==='aim'){ state.dirT+=dt*2.5; const v=0.5*(Math.sin(state.dirT)+1); elDir.style.width=`${(v*100).toFixed(1)}%`; } else if(state.phase==='power'){ state.powT+=dt*2.2; const v=0.5*(Math.sin(state.powT)+1); elPow.style.width=`${(v*100).toFixed(1)}%`; } else { elDir.style.width='0%'; elPow.style.width='0%'; }
-      stepPhysics(dt); afterThrowCheck(); drawMinimap(); renderer.render(scene,camera); drawSky(dt); for(const sp of palms){ sp.rotation.z = 0.03*Math.sin(t*0.001 + sp.userData.swingOffset); } requestAnimationFrame(animate); }
+    function animate(t){
+      const raw=(t-last)/1000; const dt=(Number.isFinite(raw)&&raw>0)?Math.min(0.033,raw):0.016; last=t;
+      if(state.phase==='aim'){ state.dirT+=dt*2.5; const v=0.5*(Math.sin(state.dirT)+1); elDir.style.width=`${(v*100).toFixed(1)}%`; }
+      else if(state.phase==='power'){ state.powT+=dt*2.2; const v=0.5*(Math.sin(state.powT)+1); elPow.style.width=`${(v*100).toFixed(1)}%`; }
+      else { elDir.style.width='0%'; elPow.style.width='0%'; }
+      stepPhysics(dt); afterThrowCheck(); drawMinimap(); renderer.render(scene,camera); drawSky(dt);
+      for(const sp of palms){ sp.rotation.z = 0.03*Math.sin(t*0.001 + sp.userData.swingOffset); }
+      requestAnimationFrame(animate);
+    }
 
     function onResize(){ const dpr = Math.min(IS_MOBILE?1.5:2, window.devicePixelRatio||1); DPR=dpr; renderer.setPixelRatio(dpr); renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect=window.innerWidth/window.innerHeight; camera.fov = IS_MOBILE?70:60; camera.updateProjectionMatrix(); resizeMinimap(); resetSky(); }
     window.addEventListener('resize', onResize);
@@ -361,15 +480,19 @@
       console.assert(ground.material.bumpScale>=0.018,'Terrain plus texturé que plage');
       // Bouton actif quand on vise
       (function(){ const prev=state.phase; state.phase='aim'; updateActionButton(); console.assert(!btnAction.disabled,'Bouton actif en phase aim'); state.phase=prev; updateActionButton(); })();
-      // Mobile/desktop: minimap masquée par défaut et toggle fonctionne
+      // Minimap masquée par défaut + bouton visible + overlay fin OK + aucun bouton New en topbar
       setTimeout(()=>{
         const wrap = document.getElementById('minimapWrap');
         console.assert(wrap.style.display==='none','Minimap masquée par défaut');
-        const before = wrap.style.display; document.getElementById('btnMap').click(); const after = wrap.style.display; document.getElementById('btnMap').click();
-        console.assert(before!==after,'Toggle minimap fonctionne');
+        const mapBtn = document.getElementById('btnMap');
+        console.assert(getComputedStyle(mapBtn).display!=='none','Bouton minimap visible quelle que soit la taille');
+        console.assert(!document.querySelector('.topbar #btnNew'),'Pas de bouton Nouvelle partie dans la topbar');
+        showEndOverlay(1);
+        console.assert(document.getElementById('endOverlay').style.display!=='none','Overlay fin visible');
+        hideEndOverlay();
+        console.assert(document.getElementById('endOverlay').style.display==='none','Overlay fin masquée');
         const rect = document.getElementById('btnAction').getBoundingClientRect();
-        console.assert(rect.bottom <= window.innerHeight + 1, 'Bouton dans le viewport');
-        console.assert(!!document.querySelector('.topbar #btnNew'),'Bouton "Nouvelle partie" dans la topbar');
+        console.assert(rect.bottom <= window.innerHeight + 1, 'Bouton action dans le viewport');
       },0);
     })();
 
